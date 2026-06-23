@@ -157,6 +157,12 @@ def run_scan(
                 continue
 
             latest = feat_df[FEATURE_NAMES].iloc[-1]
+            
+            if latest["volume_ratio"] < 1.0:
+                continue
+            if latest["adx"] < 20:
+                continue
+                
             X      = latest.values.reshape(1, -1)
             prob   = float(model.predict_proba(X)[0, 1])
 
@@ -184,7 +190,6 @@ def run_scan(
                 "taker_buy_ratio":  None,
                 "whale_net":        None,
             }
-            pass
 
             results.append(entry)
 
