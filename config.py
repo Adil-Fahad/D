@@ -20,9 +20,9 @@ HISTORY_PATH    = DATA_DIR / "signal_history.csv"
 # ─── Data Collection ──────────────────────────────────────────────────────────
 EXCHANGE_ID     = "binance"
 TIMEFRAME       = "1h"
-CANDLES         = 1000          # candles per symbol
+CANDLES         = 300          # candles per symbol
 QUOTE_CURRENCY  = "USDT"
-FETCH_DELAY_S   = 0.25          # seconds between symbol fetches (rate limit)
+FETCH_DELAY_S   = 0.05          # seconds between symbol fetches (rate limit)
 MAX_RETRIES     = 3
 
 # ─── Feature Engineering ──────────────────────────────────────────────────────
