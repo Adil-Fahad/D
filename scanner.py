@@ -184,19 +184,7 @@ def run_scan(
                 "taker_buy_ratio":  None,
                 "whale_net":        None,
             }
-
-            try:
-                of = get_order_flow(symbol)
-                if of:
-                    entry.update({
-                        "flow_score":       of["flow_score"],
-                        "flow_signal":      of["flow_signal"],
-                        "taker_buy_ratio":  of["taker_buy_ratio"],
-                        "whale_net":        of["whale_net"],
-                        "combined_verdict": get_combined_verdict(prob, of["flow_score"]),
-                    })
-            except Exception:
-                pass
+            pass
 
             results.append(entry)
 
