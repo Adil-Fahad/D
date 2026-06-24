@@ -3,7 +3,6 @@ HALAL SCAN AI PRO ULTIMATE
 config.py — Central configuration. Edit here, changes propagate everywhere.
 """
 
-import os
 from pathlib import Path
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
@@ -17,19 +16,14 @@ MODEL_PATH      = BASE_DIR / "halal_ai_production.pkl"
 FEATURES_PATH   = BASE_DIR / "features_production.pkl"
 SIGNALS_PATH    = BASE_DIR / "live_signals.csv"
 HISTORY_PATH    = DATA_DIR / "signal_history.csv"
-BACKTEST_PATH   = DATA_DIR / "backtest_results.csv"
-ALERTS_PATH     = DATA_DIR / "alerts.json"
-TELEGRAM_SENT_PATH = DATA_DIR / "telegram_sent.json"
 
 # ─── Data Collection ──────────────────────────────────────────────────────────
 EXCHANGE_ID     = "binance"
 TIMEFRAME       = "1h"
-CANDLES         = int(os.getenv("CANDLES", "500"))          # candles per symbol
+CANDLES         = 500          # candles per symbol
 QUOTE_CURRENCY  = "USDT"
-FETCH_DELAY_S   = float(os.getenv("FETCH_DELAY_S", "0.1"))          # seconds between symbol fetches (rate limit)
+FETCH_DELAY_S   = 0.05          # seconds between symbol fetches (rate limit)
 MAX_RETRIES     = 3
-RETRY_BACKOFF_BASE_S = 1.5
-HTTP_TIMEOUT_S  = 10
 
 # ─── Feature Engineering ──────────────────────────────────────────────────────
 RSI_PERIOD      = 14
@@ -70,21 +64,6 @@ XGB_PARAMS = {
     "tree_method":      "hist",
 }
 
-LGBM_PARAMS = {
-    "n_estimators":     500,
-    "max_depth":        -1,
-    "learning_rate":    0.04,
-    "num_leaves":       31,
-    "subsample":        0.85,
-    "colsample_bytree": 0.85,
-    "reg_alpha":        0.1,
-    "reg_lambda":       1.0,
-    "random_state":     42,
-    "n_jobs":           -1,
-    "objective":        "binary",
-    "verbosity":        -1,
-}
-
 # GO/NO-GO gates (must pass before backtesting is run)
 MIN_PROB_RANGE  = 0.30          # max_prob - min_prob must exceed this
 MIN_CLASS_SEP   = 0.02          # mean(prob|y=1) - mean(prob|y=0) must exceed this
@@ -106,25 +85,3 @@ FLASK_HOST      = "0.0.0.0"
 FLASK_PORT      = 5000
 FLASK_DEBUG     = False
 CACHE_TTL_S     = 300           # seconds before scanner re-runs
-
-# Binance derivatives features
-DERIVATIVE_FEATURES_ENABLED = os.getenv("DERIVATIVE_FEATURES_ENABLED", "1") == "1"
-DERIVATIVE_FEATURE_CACHE_TTL_S = int(os.getenv("DERIVATIVE_FEATURE_CACHE_TTL_S", "900"))
-BINANCE_FUTURES_BASE_URL = "https://fapi.binance.com"
-
-# Order flow
-ORDER_FLOW_CACHE_TTL_S = int(os.getenv("ORDER_FLOW_CACHE_TTL_S", "120"))
-LARGE_TRADE_THRESHOLD_USDT = float(os.getenv("LARGE_TRADE_THRESHOLD_USDT", "50000"))
-ORDER_BOOK_DEPTH = int(os.getenv("ORDER_BOOK_DEPTH", "20"))
-RECENT_TRADES_LIMIT = int(os.getenv("RECENT_TRADES_LIMIT", "500"))
-
-# Background scanning
-AUTO_SCAN_ENABLED = os.getenv("AUTO_SCAN_ENABLED", "1") == "1"
-AUTO_SCAN_INTERVAL_HOURS = float(os.getenv("AUTO_SCAN_INTERVAL_HOURS", "4"))
-AUTO_SCAN_MIN_PROB = float(os.getenv("AUTO_SCAN_MIN_PROB", str(PROB_THRESHOLD)))
-AUTO_SCAN_TOP_N = int(os.getenv("AUTO_SCAN_TOP_N", str(SCAN_TOP_N)))
-
-# Telegram alerts
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
