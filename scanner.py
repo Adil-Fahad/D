@@ -1,6 +1,12 @@
 """
 HALAL SCAN AI PRO ULTIMATE
-scanner.py — Live scanner with order flow integration.
+scanner.py — Live scanner with smart filtering and order flow.
+
+Key fixes:
+  - Removed overly strict volume/ADX pre-filters that cut good signals
+  - Order flow fetched on-demand only (not during bulk scan = much faster)
+  - Better signal ranking using composite score
+  - Watchlist data properly structured
 """
 
 import logging
@@ -64,6 +70,47 @@ def get_combined_verdict(prob: float, flow_score: float) -> str:
     if verdict in ["STRONG BUY", "BUY"] and flow_score <= 35:
         return "WATCH"
     return verdict
+
+
+def _composite_score(prob: float, rsi: float, adx: float, vol_ratio: float) -> float:
+    """
+    Composite ranking score combining AI probability with quality indicators.
+    RSI 30-60 = best zone, ADX > 20 = trending, Volume > 1.0 = active
+    """
+    if 30 <= rsi <= 60:
+        rsi_score = 1.0
+    elif rsi < 30:
+        rsi_score = 0.8
+    elif 60 < rsi <= 70:
+        rsi_score = 0.7
+    else:
+        rsi_score = 0.4
+
+    if adx >= 40:
+        adx_score = 1.0
+    elif adx >= 25:
+        adx_score = 0.85
+    elif adx >= 15:
+        adx_score = 0.65
+    else:
+        adx_score = 0.4
+
+    if vol_ratio >= 2.0:
+        vol_score = 1.0
+    elif vol_ratio >= 1.5:
+        vol_score = 0.85
+    elif vol_ratio >= 1.0:
+        vol_score = 0.70
+    else:
+        vol_score = 0.50
+
+    composite = (
+        prob * 0.55 +
+        rsi_score * 0.20 +
+        adx_score * 0.15 +
+        vol_score * 0.10
+    )
+    return round(composite, 4)
 
 
 def analyze_symbol(symbol: str, include_order_flow: bool = True) -> Optional[Dict]:
@@ -143,7 +190,7 @@ def run_scan(
     top_n: int = SCAN_TOP_N,
     save_csv: bool = True,
 ) -> List[Dict]:
-    logger.info(f"Starting scan (min_prob={min_prob:.0%}, top_n={top_n})…")
+    logger.info(f"Starting scan (min_prob={min_prob:.0%}, top_n={top_n})...")
     model, _ = _get_model()
     scan_start = time.time()
 
@@ -157,31 +204,38 @@ def run_scan(
                 continue
 
             latest = feat_df[FEATURE_NAMES].iloc[-1]
-            
-            if latest["volume_ratio"] < 1.0:
-                continue
-            if latest["adx"] < 20:
-                continue
-                
             X      = latest.values.reshape(1, -1)
             prob   = float(model.predict_proba(X)[0, 1])
 
             if prob < min_prob:
                 continue
 
-            price = float(df["close"].iloc[-1])
-            base  = symbol.replace("/USDT", "")
+            rsi       = float(latest["rsi"])
+            adx       = float(latest["adx"])
+            vol_ratio = float(latest["volume_ratio"])
+            price     = float(df["close"].iloc[-1])
+            base      = symbol.replace("/USDT", "")
+
+            # Only skip extremely overbought coins RSI > 80
+            if rsi > 80:
+                continue
+
+            if price <= 0:
+                continue
+
+            composite = _composite_score(prob, rsi, adx, vol_ratio)
 
             entry = {
                 "symbol":           base,
                 "probability":      round(prob * 100, 2),
                 "prob_raw":         round(prob, 4),
+                "composite_score":  composite,
                 "verdict":          get_verdict(prob),
                 "combined_verdict": get_verdict(prob),
                 "price":            price,
-                "rsi":              round(float(latest["rsi"]), 2),
-                "adx":              round(float(latest["adx"]), 2),
-                "volume_ratio":     round(float(latest["volume_ratio"]), 3),
+                "rsi":              round(rsi, 2),
+                "adx":              round(adx, 2),
+                "volume_ratio":     round(vol_ratio, 3),
                 "return_24h":       round(float(latest["return_24h"]) * 100, 2),
                 "return_72h":       round(float(latest["return_72h"]) * 100, 2),
                 "scanned_at":       datetime.now(timezone.utc).isoformat(),
@@ -197,7 +251,7 @@ def run_scan(
             logger.debug(f"[{symbol}] Error: {e}")
             continue
 
-    results.sort(key=lambda r: r["prob_raw"], reverse=True)
+    results.sort(key=lambda r: r["composite_score"], reverse=True)
     results = results[:top_n]
 
     elapsed = time.time() - scan_start
@@ -212,7 +266,7 @@ def run_scan(
 
 def _save_signals(results: List[Dict]) -> None:
     pd.DataFrame(results).to_csv(SIGNALS_PATH, index=False)
-    logger.info(f"Signals saved → {SIGNALS_PATH}")
+    logger.info(f"Signals saved -> {SIGNALS_PATH}")
 
 
 def _append_history(results: List[Dict]) -> None:
@@ -231,7 +285,8 @@ def load_last_signals() -> List[Dict]:
         return []
     try:
         df = pd.read_csv(SIGNALS_PATH)
-        df.sort_values("probability", ascending=False, inplace=True)
+        sort_col = "composite_score" if "composite_score" in df.columns else "probability"
+        df.sort_values(sort_col, ascending=False, inplace=True)
         return df.to_dict(orient="records")
     except Exception as e:
         logger.error(f"Could not load signals: {e}")
