@@ -21,7 +21,7 @@ EXCHANGE_ID    = "binance"
 TIMEFRAME      = "1h"
 CANDLES        = 300        # reduced from 1000 — saves memory on Render
 QUOTE_CURRENCY = "USDT"
-FETCH_DELAY_S  = 0.1       # reduced from 0.25 — faster scanning
+FETCH_DELAY_S  = 0.5       # reduced from 0.25 — faster scanning
 MAX_RETRIES    = 3
 MAX_SYMBOLS    = 391        # max symbols to scan
 

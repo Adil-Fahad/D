@@ -1,6 +1,7 @@
 """
 HALAL SCAN AI PRO ULTIMATE
 scanner.py — Memory optimized. One symbol at a time. No CSV writing.
+Upgraded to 9.5 Signal Quality Configuration for Python 3.11.
 """
 
 import gc
@@ -134,9 +135,9 @@ def run_scan(
 ) -> List[Dict]:
     """
     Memory-optimized scan — processes ONE symbol at a time.
-    Never loads all symbols into RAM simultaneously.
+    Enforces institutional trend filters and active volume thresholds.
     """
-    logger.info(f"Starting scan (min_prob={min_prob:.0%}, top_n={top_n})...")
+    logger.info(f"Starting upgraded scan (min_prob={min_prob:.0%}, top_n={top_n})...")
     model, _ = _get_model()
     scan_start = time.time()
 
@@ -158,17 +159,21 @@ def run_scan(
 
             # Engineer features
             feat_df = engineer_features(df, add_target=False)
-            del df          # free RAM immediately
-            gc.collect()
-
+            
             if feat_df.empty:
+                del df
+                gc.collect()
                 continue
 
             latest = feat_df[FEATURE_NAMES].iloc[-1].copy()
-            del feat_df     # free RAM immediately
+            
+            # Keep tracks of latest pricing context safely
+            current_close = float(df["close"].iloc[-1])
+            del df
+            del feat_df
             gc.collect()
 
-            # Score
+            # Core Probability Score
             X    = latest.values.reshape(1, -1)
             prob = float(model.predict_proba(X)[0, 1])
 
@@ -182,10 +187,31 @@ def run_scan(
             ret_24h   = float(latest["return_24h"]) * 100
             ret_72h   = float(latest["return_72h"]) * 100
 
-            # Skip overbought
+            # ── 9.5 SIGNAL FILTERS ──────────────────────────────────────────
+
+            # 1. Skip strictly overbought conditions
             if rsi > 80:
                 time.sleep(FETCH_DELAY_S)
                 continue
+
+            # 2. Institutional Volume Gate: Drop ghost-town drops
+            if vol_ratio < 0.85:
+                time.sleep(FETCH_DELAY_S)
+                continue
+
+            # 3. Macro Bleed-Out Rule: Exclude massive structural dumps
+            if ret_72h < -15.0:
+                time.sleep(FETCH_DELAY_S)
+                continue
+
+            # 4. Long-Term EMA Filter: Check macro health
+            if "ema200" in latest:
+                ema200_val = float(latest["ema200"])
+                if current_close < (ema200_val * 0.90):
+                    time.sleep(FETCH_DELAY_S)
+                    continue
+
+            # ────────────────────────────────────────────────────────────────
 
             composite = _composite_score(prob, rsi, adx, vol_ratio)
             base      = symbol.replace("/USDT", "")
@@ -216,7 +242,7 @@ def run_scan(
             failed += 1
             continue
 
-    # Sort by composite score
+    # Sort and slice limits
     results.sort(key=lambda r: r["composite_score"], reverse=True)
     results = results[:top_n]
 
@@ -253,7 +279,6 @@ def analyze_symbol(symbol: str, include_order_flow: bool = True) -> Optional[Dic
     prob = float(model.predict_proba(X)[0, 1])
     base = sym.replace("/USDT", "")
 
-    # Get price from exchange
     try:
         ticker = exchange.fetch_ticker(sym)
         price  = float(ticker.get("last", 0))
