@@ -83,4 +83,4 @@ VERDICT_RULES = {
 FLASK_HOST  = "0.0.0.0"
 FLASK_PORT  = 5000
 FLASK_DEBUG = False
-CACHE_TTL_S = 600           # cache scan for 10 minutes
+CACHE_TTL_S = 0           # cache scan for 10 minutes
